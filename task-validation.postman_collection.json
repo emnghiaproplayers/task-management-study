@@ -1,12 +1,12 @@
 {
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
-    "name": "Task Management Validation API",
+    "name": "User Validation API Collection",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Case 1: Body hợp lệ -> 201",
+      "name": "Case 1: Valid corporate user -> 201",
       "request": {
         "method": "POST",
         "header": [
@@ -17,24 +17,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"Fix bug\",\n  \"priority\": \"high\"\n}"
+          "raw": "{\n  \"email\": \"john.doe@company.com\",\n  \"address\": {\n    \"street\": \"123 Main Street\",\n    \"city\": \"New York\",\n    \"zipCode\": \"10001\"\n  }\n}"
         },
         "url": {
-          "raw": "http://localhost:3000/tasks",
+          "raw": "http://localhost:3000/users",
           "protocol": "http",
           "host": [
             "localhost"
           ],
           "port": "3000",
           "path": [
-            "tasks"
+            "users"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "Case 2: Thiếu title -> 400",
+      "name": "Case 2: Gmail reject -> 400",
       "request": {
         "method": "POST",
         "header": [
@@ -45,24 +45,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"priority\": \"low\"\n}"
+          "raw": "{\n  \"email\": \"john.doe@gmail.com\",\n  \"address\": {\n    \"street\": \"123 Main Street\",\n    \"city\": \"New York\",\n    \"zipCode\": \"10001\"\n  }\n}"
         },
         "url": {
-          "raw": "http://localhost:3000/tasks",
+          "raw": "http://localhost:3000/users",
           "protocol": "http",
           "host": [
             "localhost"
           ],
           "port": "3000",
           "path": [
-            "tasks"
+            "users"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "Case 3: Title quá ngắn -> 400",
+      "name": "Case 3: Bad zipCode -> 400",
       "request": {
         "method": "POST",
         "header": [
@@ -73,24 +73,24 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"AB\",\n  \"priority\": \"low\"\n}"
+          "raw": "{\n  \"email\": \"john.doe@company.com\",\n  \"address\": {\n    \"street\": \"123 Main Street\",\n    \"city\": \"New York\",\n    \"zipCode\": \"12\"\n  }\n}"
         },
         "url": {
-          "raw": "http://localhost:3000/tasks",
+          "raw": "http://localhost:3000/users",
           "protocol": "http",
           "host": [
             "localhost"
           ],
           "port": "3000",
           "path": [
-            "tasks"
+            "users"
           ]
         }
       },
       "response": []
     },
     {
-      "name": "Case 4: Field lạ -> 400",
+      "name": "Case 4: Omit @Type bypass demo -> 201",
       "request": {
         "method": "POST",
         "header": [
@@ -101,47 +101,20 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"Fix bug\",\n  \"priority\": \"high\",\n  \"role\": \"admin\"\n}"
+          "raw": "{\n  \"email\": \"john.doe@company.com\",\n  \"address\": {\n    \"street\": \"123 Main Street\",\n    \"city\": \"New York\",\n    \"zipCode\": \"12\"\n  }\n}"
         },
         "url": {
-          "raw": "http://localhost:3000/tasks",
+          "raw": "http://localhost:3000/users",
           "protocol": "http",
           "host": [
             "localhost"
           ],
           "port": "3000",
           "path": [
-            "tasks"
+            "users"
           ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "Case 5: Priority sai enum -> 400",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"title\": \"Fix bug\",\n  \"priority\": \"urgent\"\n}"
         },
-        "url": {
-          "raw": "http://localhost:3000/tasks",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "3000",
-          "path": [
-            "tasks"
-          ]
-        }
+        "description": "If @Type(() => AddressDto) is removed from CreateUserDto, sending an invalid zipCode ('12') will bypass validation and return 201 instead of 400."
       },
       "response": []
     }
