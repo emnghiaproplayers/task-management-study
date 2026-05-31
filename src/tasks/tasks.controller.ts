@@ -19,11 +19,11 @@ import { Task } from './task.interface';
 export class TasksController {
   private readonly logger = new Logger(TasksController.name);
 
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(private readonly tasksService: TasksService) { }
 
   @Post()
   create(@Body() createTaskDto: CreateTaskDto): Task {
-    this.logger.log(`POST /tasks: Creating task "${createTaskDto.title}"`);
+    this.logger.log(`POST /tasks: Creating task "${createTaskDto.title + "__" + createTaskDto.description + "__" + createTaskDto.priority}"`);
     return this.tasksService.create(createTaskDto);
   }
 
