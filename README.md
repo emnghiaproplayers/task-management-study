@@ -1,19 +1,24 @@
-# NestJS Request Validation & Mass-Assignment Protection
+# Task Management REST API with Swagger Documentation
 
-Dự án giới thiệu giải pháp xác thực request nâng cao sử dụng NestJS, bao gồm kiểm thực lồng nhau đệ quy (Recursive Nested DTO validation) và triển khai custom validator decorator chống rò rỉ dữ liệu hoặc mass-assignment.
+Hệ thống quản lý công việc (Task Management) được tích hợp tài liệu hướng dẫn giao diện lập trình ứng dụng (API Documentation) tự động bằng cách sử dụng `@nestjs/swagger` theo chuẩn OpenAPI Spec.
 
 ---
 
 ## 1. Challenge Description
 
-Bài toán tập trung giải quyết các bài toán xác thực dữ liệu phức tạp ở biên hệ thống (API Gateway/Controller) trước khi đi vào tầng logic nghiệp vụ:
-- **Nested DTO Validation**: Thiết lập mối quan hệ lồng nhau giữa `CreateUserDto` và `AddressDto` để kiểm thực toàn bộ dữ liệu địa chỉ gửi lên.
-  - Ràng buộc: `street` (chuỗi >= 3 ký tự), `city` (chuỗi >= 2 ký tự), `zipCode` (phải là số dài từ 4-10 ký tự).
-  - Yêu cầu đệ quy: Payload lỗi ở nested property phải hiển thị chính xác đường dẫn lỗi dưới dạng `address.zipCode` và trả về mã lỗi HTTP `400 Bad Request`.
-- **Custom Decorator `@IsCorporateEmail()`**: Chặn các email đăng ký tài khoản từ nhà cung cấp dịch vụ công cộng như Gmail, Yahoo, Hotmail, Outlook.
-  - Yêu cầu an toàn: Chuyển đổi chữ thường (lowercase) domain trước khi so khớp để tránh bypass bằng cách viết hoa chữ cái (ví dụ: `john.doe@GMAIL.COM`).
-  - Yêu cầu mở rộng: Hỗ trợ tùy biến thông báo lỗi thông qua `validationOptions`.
-- **Unit & Integration Testing**: Viết unit test cho constraint của custom decorator và integration e2e test để tự động hóa kiểm định cả 3 nhánh flow chính của API `/users`.
+Bài toán tập trung xây dựng hệ thống tài liệu API trực quan và chuyên nghiệp:
+- **Cấu hình Swagger toàn cục**:
+  - Mount Swagger UI tại đường dẫn `/docs`.
+  - Định nghĩa metadata của API sử dụng `DocumentBuilder` bao gồm `setTitle`, `setDescription`, và `setVersion`.
+  - Đăng ký cơ chế xác thực Token Bearer bằng phương thức `addBearerAuth()`.
+- **Trang trí DTO & Model Schema**:
+  - Trang trí `CreateTaskDto` bằng decorator `@ApiProperty` để tự động hóa sinh tài liệu schema và prefill mẫu payload giúp kiểm thử nhanh qua tính năng "Try it out".
+  - Trang trí thực thể `Task` để mô tả kiểu dữ liệu phản hồi (Response type) giúp frontend nắm bắt được cấu trúc JSON trả về.
+- **Annotate Controller Endpoints**:
+  - Phân nhóm API bằng tag `Tasks` thông qua `@ApiTags()`.
+  - Mô tả chức năng của từng endpoint bằng `@ApiOperation()`.
+  - Gắn tài liệu mã phản hồi bằng `@ApiResponse()` (VD: `201 success`, `400 invalid`, `404 not found`).
+  - Gắn `@ApiBearerAuth()` ở controller level để tích hợp nút Authorize xác thực JWT Bearer cho toàn bộ API Tasks.
 
 ---
 
@@ -23,227 +28,303 @@ Bài toán tập trung giải quyết các bài toán xác thực dữ liệu ph
 - **Node.js**: >= 18.x
 - **npm**: >= 9.x
 
-### Lệnh chạy kiểm thử và vận hành
+### Lệnh khởi chạy và kiểm thử
 
-1. **Khởi chạy kiểm thử đơn vị (Unit Tests)**:
+1. **Khởi chạy máy chủ (Listening on port 3000)**:
+   ```bash
+   npm run start:dev
+   ```
+
+2. **Truy cập Giao diện Swagger UI**:
+   - Mở trình duyệt và truy cập: `http://localhost:3000/docs`
+
+3. **Truy cập Raw OpenAPI Spec (JSON)**:
+   - Truy cập: `http://localhost:3000/docs-json`
+
+4. **Chạy các bộ kiểm thử tự động**:
    ```bash
    npm test
-   ```
-   *Chạy toàn bộ các test suite kiểm thử logic của custom email validator.*
-
-2. **Khởi chạy kiểm thử tích hợp (E2E Integration Tests)**:
-   ```bash
    npm run test:e2e
-   ```
-   *Chạy toàn bộ kiểm thử tích hợp HTTP sử dụng supertest và NestJS testing module.*
-
-3. **Biên dịch dự án**:
-   ```bash
-   npm run build
-   ```
-
-4. **Khởi chạy máy chủ sản phẩm**:
-   ```bash
-   node dist/main.js
    ```
 
 ---
 
 ## 3. Architecture / Stack
 
-Hệ thống được phát triển trên nền tảng:
-- **NestJS v11.x** & **TypeScript v5.7**
-- **class-validator** & **class-transformer** làm động cơ validate.
-- **Supertest** & **Jest** phục vụ viết và chạy kiểm thử tự động.
+Hệ thống được phát triển trên các thư viện cốt lõi:
+- **NestJS v11.x**, **TypeScript v5.7**
+- **@nestjs/swagger v11.x**: Động cơ sinh tài liệu tự động qua decorator metadata.
+- **class-validator** & **class-transformer** làm động cơ kiểm thực.
 
-### Sơ đồ Quy trình Xác thực & Phản hồi (Mermaid Diagram)
+### Sơ đồ luồng hoạt động Swagger (Mermaid Diagram)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client
-    participant App as NestJS Application
-    participant Pipe as ValidationPipe
-    participant DTO as CreateUserDto
-    participant NestedDTO as AddressDto
-    participant Decorator as IsCorporateEmailConstraint
-    participant Interceptor as TransformInterceptor
-    participant Controller as UsersController
-    participant Filter as AllExceptionsFilter
+    actor Client as Client / Swagger UI
+    participant Server as NestJS Server
+    participant Swagger as SwaggerModule
+    participant Controller as TasksController
+    participant DTO as CreateTaskDto
 
-    Client->>App: POST /users (JSON Payload)
-    App->>Pipe: Chuyển tiếp request body
-    Pipe->>DTO: Ánh xạ và kiểm thực CreateUserDto
-    DTO->>Decorator: Kích hoạt kiểm tra @IsCorporateEmail()
-    alt Email thuộc gmail.com/yahoo.com...
-        Decorator-->>Pipe: Thất bại (Trả về thông tin lỗi email)
-    else Email hợp lệ
-        Decorator-->>DTO: Thành công
-    end
+    Client->>Server: GET /docs (Truy cập tài liệu)
+    Server->>Swagger: Yêu cầu kết xuất giao diện Swagger UI HTML
+    Swagger-->>Client: Trả về trang Swagger UI (Kèm nút Authorize & schema)
 
-    DTO->>NestedDTO: Ánh xạ đệ quy @ValidateNested() & @Type()
-    alt zipCode không khớp regex ^\d{4,10}$
-        NestedDTO-->>Pipe: Thất bại (Lỗi tại path: address.zipCode)
-    else zipCode hợp lệ
-        NestedDTO-->>DTO: Thành công
-    end
+    Note over Client, Swagger: Người dùng nhấn Authorize & điền Token JWT
 
-    alt Có bất kỳ lỗi xác thực nào
-        Pipe-->>Filter: Bắt lỗi bằng AllExceptionsFilter
-        Filter-->>Client: Trả về HTTP 400 Bad Request (Error Details)
-    else Toàn bộ dữ liệu hợp lệ
-        Pipe->>Interceptor: Đi qua TransformInterceptor (Pre-handler)
-        Interceptor->>Controller: Chuyển tiếp DTO an toàn
-        Controller-->>Interceptor: Trả về raw data
-        Interceptor->>Interceptor: Đọc statusCode & Wrap thành Success Envelope
-        Interceptor-->>Client: Trả về HTTP 201 Created (Created User JSON)
-    end
+    Client->>Server: POST /tasks (Try it out - kèm Header Authorization)
+    Server->>Server: Khớp token Bearer ở lớp chặn (nếu có)
+    Server->>DTO: Ánh xạ và Validate payload qua DTO metadata
+    Server->>Controller: Chuyển tiếp DTO hợp lệ đến TasksController.create()
+    Controller-->>Client: Trả về HTTP 201 Created + JSON Task data
 ```
 
 ---
 
 ## 4. Smoke Test (Evidence Thực Tế)
 
-Dưới đây là kết quả log thực tế thu được từ máy chủ NestJS khi gửi các request kiểm thực:
+Dưới đây là bằng chứng thực tế được thu thập trực tiếp khi chạy và tương tác với Swagger UI của máy chủ NestJS:
 
-### Case 1: Hợp lệ (Valid corporate user) -> `201 Created`
+### Case 1: Đọc Raw OpenAPI Specification JSON (`GET /docs-json`)
 - **Request**:
   ```bash
-  curl -i -X POST http://localhost:3000/users -H "Content-Type: application/json" -d '{"email":"john.doe@company.com","address":{"street":"123 Main Street","city":"New York","zipCode":"10001"}}'
+  curl -s http://localhost:3000/docs-json
   ```
-- **Response**:
-  ```http
-  HTTP/1.1 201 Created
-  Content-Type: application/json; charset=utf-8
+- **Response Spec (Trích xuất các thành phần cốt lõi)**:
+  ```json
+  {
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Task Management API",
+      "description": "Task Management API description",
+      "version": "1.0",
+      "contact": {}
+    },
+    "paths": {
+      "/tasks": {
+        "post": {
+          "operationId": "TasksController_create",
+          "parameters": [],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateTaskDto"
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Task created successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Task"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid request payload"
+            }
+          },
+          "tags": ["Tasks"],
+          "security": [{"bearer": []}]
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "CreateTaskDto": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "example": "Fix login bug",
+              "description": "The title of the task",
+              "minLength": 3,
+              "maxLength": 100
+            },
+            "description": {
+              "type": "string",
+              "example": "Investigate why users cannot log in and fix the root cause.",
+              "description": "A detailed description of the task",
+              "maxLength": 500
+            },
+            "priority": {
+              "type": "string",
+              "enum": ["low", "medium", "high"],
+              "example": "high",
+              "description": "The priority of the task"
+            }
+          },
+          "required": ["title"]
+        },
+        "Task": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "example": "mpu88ybs53q",
+              "description": "The unique identifier of the task"
+            },
+            "title": {
+              "type": "string",
+              "example": "Fix login bug",
+              "description": "The title of the task"
+            },
+            "description": {
+              "type": "string",
+              "example": "Investigate why users cannot log in and fix the root cause.",
+              "description": "A detailed description of the task"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["PENDING", "IN_PROGRESS", "COMPLETED"],
+              "example": "PENDING",
+              "description": "The current status of the task"
+            }
+          },
+          "required": ["id", "title", "status"]
+        }
+      },
+      "securitySchemes": {
+        "bearer": {
+          "scheme": "bearer",
+          "bearerFormat": "JWT",
+          "type": "http"
+        }
+      }
+    }
+  }
   ```
+
+### Case 2: Tạo công việc qua Swagger UI "Try it out" (`POST /tasks`) -> `201 Created`
+Khi nhấn "Execute" với body được prefill tự động từ `@ApiProperty`:
+- **Request URL**: `http://localhost:3000/tasks`
+- **Request Body**:
+  ```json
+  {
+    "title": "Test from Swagger",
+    "description": "Testing API documentation",
+    "priority": "high"
+  }
+  ```
+- **Response Body**:
   ```json
   {
     "statusCode": 201,
     "message": "SUCCESS",
     "data": {
-      "id": "mpu8pxjuo87",
-      "email": "john.doe@company.com",
-      "address": {
-        "street": "123 Main Street",
-        "city": "New York",
-        "zipCode": "10001"
-      }
+      "id": "mpv1i0h33q8",
+      "title": "Test from Swagger",
+      "description": "Testing API documentation",
+      "status": "PENDING"
     },
-    "timestamp": "2026-06-01T03:00:59.854Z"
+    "timestamp": "2026-06-01T10:02:20.008Z"
   }
   ```
 
-### Case 2: Gmail bị chặn (Gmail reject) -> `400 Bad Request`
-- **Request**:
-  ```bash
-  curl -i -X POST http://localhost:3000/users -H "Content-Type: application/json" -d '{"email":"john.doe@gmail.com","address":{"street":"123 Main Street","city":"New York","zipCode":"10001"}}'
-  ```
-- **Response**:
-  ```http
-  HTTP/1.1 400 Bad Request
-  Content-Type: application/json; charset=utf-8
-  ```
+### Case 3: Lấy danh sách qua Swagger UI "Try it out" (`GET /tasks`) -> `200 OK`
+- **Request URL**: `http://localhost:3000/tasks`
+- **Response Body**:
   ```json
   {
-    "statusCode": 400,
-    "error": "BadRequestException",
-    "message": [
-      "email must be a corporate email address (public domains like gmail.com, yahoo.com, hotmail.com, or outlook.com are not allowed)"
+    "statusCode": 200,
+    "message": "SUCCESS",
+    "data": [
+      {
+        "id": "1",
+        "title": "Học NestJS",
+        "status": "PENDING",
+        "description": ""
+      },
+      {
+        "id": "mpv1i0h33q8",
+        "title": "Test from Swagger",
+        "description": "Testing API documentation",
+        "status": "PENDING"
+      }
     ],
-    "timestamp": "2026-06-01T03:00:59.862Z",
-    "path": "/users"
+    "timestamp": "2026-06-01T10:02:20.011Z"
   }
   ```
-
-### Case 3: ZipCode không hợp lệ (Bad zipCode) -> `400 Bad Request`
-- **Request**:
-  ```bash
-  curl -i -X POST http://localhost:3000/users -H "Content-Type: application/json" -d '{"email":"john.doe@company.com","address":{"street":"123 Main Street","city":"New York","zipCode":"12"}}'
-  ```
-- **Response**:
-  ```http
-  HTTP/1.1 400 Bad Request
-  Content-Type: application/json; charset=utf-8
-  ```
-  ```json
-  {
-    "statusCode": 400,
-    "error": "BadRequestException",
-    "message": [
-      "address.zipCode must be a numeric string between 4 and 10 digits"
-    ],
-    "timestamp": "2026-06-01T03:00:59.864Z",
-    "path": "/users"
-  }
-  ```
-
-### Case 4: Minh họa bỏ quên `@Type` (Bypass validation) -> `201 Created`
-Dưới đây là phần code diff minh họa tác hại khi xóa decorator `@Type(() => AddressDto)` khỏi thuộc tính `address` trong DTO:
-
-```diff
-  export class CreateUserDto {
-    @IsEmail()
-    @IsCorporateEmail()
-    email: string;
- 
-    @IsDefined({ message: 'address is required' })
-    @ValidateNested()
--   @Type(() => AddressDto)
-    address: AddressDto;
-  }
-```
-
-- **Tác hại**: Khi xóa dòng `@Type(() => AddressDto)`, nếu client gửi lên payload có `zipCode` không hợp lệ (ví dụ: `"zipCode": "12"`), NestJS sẽ **không** báo lỗi và vẫn trả về `201 Created`. Lý do là không có constructor để ánh xạ JSON thô thành thực thể `AddressDto`, khiến `class-validator` bỏ qua bước kiểm tra `@ValidateNested()`.
 
 ---
 
-## 5. Code Execution Trace (Flow POST /users)
+## 5. Code Execution Trace (Flow Khởi tạo Swagger)
 
-Request `POST /users` đi qua 5 điểm chạm chính xác trong source code để thực hiện xác thực và định dạng:
+Quá trình quét metadata và khởi chạy giao diện tài liệu Swagger đi qua các điểm chạm sau:
 
-1. **Điểm chạm 1 - Đăng ký ValidationPipe & Interceptor toàn cục**:
-   - **File & Dòng**: [src/main.ts:24](file:///d:/Nghia-project/escape-beta/task-management/src/main.ts#L24)
-   - **Mã nguồn**: `app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))`
-   - **Mô tả**: Kích hoạt ValidationPipe toàn cục để lọc sạch request và tiến hành xác thực trước khi route handler được kích hoạt. Ở các dòng 30-31, `TransformInterceptor` và `AllExceptionsFilter` cũng được đăng ký toàn cục.
+1. **Điểm chạm 1 - Đăng ký Module & Cấu hình Docs Path**:
+   - **File & Dòng**: [src/main.ts:35](file:///d:/Nghia-project/escape-beta/task-management/src/main.ts#L35)
+   - **Mã nguồn**:
+     ```typescript
+     const config = new DocumentBuilder()
+       .setTitle('Task Management API')
+       .setDescription('Task Management API description')
+       .setVersion('1.0')
+       .addBearerAuth()
+       .build();
+     const document = SwaggerModule.createDocument(app, config);
+     SwaggerModule.setup('docs', app, document);
+     ```
+   - **Mô tả**: Khởi tạo SwaggerModule và mount giao diện tài liệu UI lên đường dẫn `/docs`.
 
-2. **Điểm chạm 2 - Khai báo DTO & Ràng buộc đệ quy**:
-   - **File & Dòng**: [src/users/dto/create-user.dto.ts:6](file:///d:/Nghia-project/escape-beta/task-management/src/users/dto/create-user.dto.ts#L6)
-   - **Mã nguồn**: `CreateUserDto` sử dụng cặp decorator `@ValidateNested()` và `@Type(() => AddressDto)`.
-   - **Mô tả**: ValidationPipe đọc metadata từ class này để xác định rằng trường `address` phải được validate lồng đệ quy.
+2. **Điểm chạm 2 - Controller Route Annotations**:
+   - **File & Dòng**: [src/tasks/tasks.controller.ts:26](file:///d:/Nghia-project/escape-beta/task-management/src/tasks/tasks.controller.ts#L26)
+   - **Mã nguồn**:
+     ```typescript
+     @Post()
+     @ApiOperation({ summary: 'Create a new task' })
+     @ApiResponse({ status: 201, type: Task, description: 'Task created successfully' })
+     @ApiResponse({ status: 400, description: 'Invalid request payload' })
+     create(@Body() createTaskDto: CreateTaskDto): Task
+     ```
+   - **Mô tả**: Gắn metadata mô tả endpoint và định nghĩa các mã HTTP status phản hồi có thể trả về.
 
-3. **Điểm chạm 3 - Ràng buộc thuộc tính con**:
-   - **File & Dòng**: [src/users/dto/address.dto.ts:3](file:///d:/Nghia-project/escape-beta/task-management/src/users/dto/address.dto.ts#L3)
-   - **Mã nguồn**: `AddressDto` sử dụng `@Matches(/^\d{4,10}$/)` trên thuộc tính `zipCode`.
-   - **Mô tả**: Thực thi kiểm tra định dạng của các trường con bên trong `address`.
-
-4. **Điểm chạm 4 - Custom Decorator kiểm tra email**:
-   - **File & Dòng**: [src/users/validators/is-corporate-email.validator.ts:3](file:///d:/Nghia-project/escape-beta/task-management/src/users/validators/is-corporate-email.validator.ts#L3)
-   - **Mã nguồn**: Hàm `validate(value, args)` so khớp domain email đã được đưa về dạng chữ thường với blocklist.
-   - **Mô tả**: Thực hiện loại bỏ các địa chỉ email công cộng, chỉ chấp nhận email doanh nghiệp.
-
-5. **Điểm chạm 5 - Outbound Interceptor Wrapping**:
-   - **File & Dòng**: [src/common/interceptors/transform.interceptor.ts:6](file:///d:/Nghia-project/escape-beta/task-management/src/common/interceptors/transform.interceptor.ts#L6)
-   - **Method**: `TransformInterceptor.intercept()`
-   - **Mô tả**: Bắt lấy dữ liệu thành công trả về từ Controller, đọc statusCode từ context ở dòng 9 và đóng gói thành công thành success envelope trước khi gửi về client. Nếu xảy ra lỗi, [src/common/filters/all-exceptions.filter.ts:4](file:///d:/Nghia-project/escape-beta/task-management/src/common/filters/all-exceptions.filter.ts#L4) sẽ bắt và định dạng lại lỗi thay thế.
+3. **Điểm chạm 3 - DTO Property Mapping**:
+   - **File & Dòng**: [src/tasks/dto/create-task.dto.ts:10](file:///d:/Nghia-project/escape-beta/task-management/src/tasks/dto/create-task.dto.ts#L10)
+   - **Mã nguồn**:
+     ```typescript
+     @ApiProperty({
+       example: 'Fix login bug',
+       description: 'The title of the task',
+       minLength: 3,
+       maxLength: 100,
+     })
+     title: string;
+     ```
+   - **Mô tả**: Khai báo ví dụ (example) và các ràng buộc dữ liệu trực quan cho Schema Object trên giao diện tài liệu.
 
 ---
 
 ## 6. Design Decisions
 
-### A. Chọn Global Interceptor + Filter thay vì Decorator per-controller
-- **Quyết định**: Sử dụng `app.useGlobalInterceptors()` và `app.useGlobalFilters()` trong file khởi chạy ứng dụng.
-- **Trade-off (DRY & Nhất quán vs Tính linh hoạt cục bộ)**:
-  - *Sử dụng toàn cục (Global)*: Giúp toàn bộ API của hệ thống thống nhất một format phản hồi, tránh tình trạng viết code format thủ công trong từng API, bảo vệ hệ thống khỏi việc leak stack trace khi lập trình viên quên gắn decorator.
-  - *Sử dụng cục bộ (Per-controller)*: Tốt cho các hệ thống lai (ví dụ vừa trả về JSON API vừa render HTML views). Tuy nhiên, đối với hệ thống thuần REST API, dùng cục bộ dễ dẫn đến thiếu sót và không đồng bộ cấu trúc lỗi.
+### A. Chọn mount Swagger UI tại `/docs` thay vì `/api` hoặc `/swagger`
+- **Quyết định**: Cấu hình đường dẫn tài liệu mặc định là `/docs`.
+- **Trade-off (Tính phổ biến và bảo mật vs Tiêu chuẩn mặc định)**:
+  - *Sử dụng `/docs`*: Rất trực quan và phổ biến đối với các nhà phát triển frontend khi tìm kiếm tài liệu (phù hợp với thói quen tìm kiếm thư mục `/docs` hoặc `/documentation`). Đồng thời, nó tách biệt hoàn toàn với phân vùng API chạy thực tế (thường mount ở `/api/v1/...`), giúp dễ dàng cấu hình quy tắc bảo mật chặn truy cập `/docs` ở môi trường production ở mức Reverse Proxy (Nginx/Cloudflare).
+  - *Sử dụng `/swagger` hoặc `/api`*: Lộ ra cấu trúc tài liệu quá lộ liễu cho hacker dò tìm, đồng thời dễ xung đột đường dẫn nếu API chính thức cũng bắt đầu bằng `/api`.
 
-### B. Chọn `registerDecorator` thay vì Class implement `ValidatorConstraintInterface`
-- **Quyết định**: Dùng `registerDecorator` cho `@IsCorporateEmail()`.
-- **Trade-off (Sự tinh gọn vs Khả năng nhúng dependency)**:
-  - *Dùng `registerDecorator`*: Code tinh gọn, đóng gói logic validate nhỏ trong cùng một file, dễ viết unit test độc lập.
-  - *Dùng Class Interface*: Cho phép tiêm (inject) các service khác (như TypeORM Repository) để kiểm tra dữ liệu từ database. Tuy nhiên, nó tăng độ phức tạp trong việc đăng ký DI container.
+### B. Sử dụng Decorator-Driven Swagger Spec thay vì viết tay YAML/JSON
+- **Quyết định**: Sử dụng `@nestjs/swagger` để tự động sinh tài liệu từ mã nguồn.
+- **Trade-off (Tính nhất quán & Tốc độ phát triển vs Độ tách biệt của tài liệu)**:
+  - *Decorator-Driven (Sinh tự động)*: Giúp code trở thành "Single Source of Truth". Khi lập trình viên thay đổi trường dữ liệu hoặc validator trong DTO class, tài liệu Swagger sẽ tự động cập nhật ngay khi build mà không sợ bị lệch pha (out of sync). 
+  - *Viết tay YAML/JSON*: Giúp mã nguồn controller sạch hơn, không bị rối mắt bởi lượng lớn decorator. Tuy nhiên, nó đòi hỏi lập trình viên phải duy trì hai file độc lập, rất dễ xảy ra sai lệch thông tin khi dự án mở rộng nhanh chóng.
 
-### C. Chọn Block List dạng Hardcode thay vì Config-Driven
-- **Quyết định**: Lưu danh sách domain cấm trực tiếp dưới dạng mảng tĩnh.
-- **Trade-off (Sự độc lập khi deploy vs Sự linh hoạt cấu hình)**:
-  - *Hardcode*: Giúp ứng dụng độc lập tuyệt đối khi chạy kiểm thử (Unit test/E2E), đảm bảo test suite luôn chạy ổn định mà không cần mock file cấu hình.
-  - *Config-driven*: Cho phép thay đổi blocklist qua biến môi trường (.env) không cần build lại code, nhưng tăng nguy cơ crash runtime nếu biến môi trường cấu hình sai hoặc thiếu.
+### C. Sử dụng Nested DTO thay vì Single Flat Object
+- **Quyết định**: Tách thông tin địa chỉ ra thành một DTO con `AddressDto` lồng bên trong `CreateUserDto` thay vì đưa toàn bộ các trường `street`, `city`, `zipCode` lên cùng cấp với `email`.
+- **Trade-off (Tính module hóa & Khả năng tái sử dụng vs Sự phức tạp khi validate)**:
+  - *Sử dụng Nested DTO*: Giúp cấu trúc dữ liệu rõ ràng hơn, phản ánh đúng mô hình domain (một User có một Address). `AddressDto` có thể được tái sử dụng ở các endpoint khác (ví dụ: cập nhật địa chỉ, đăng ký nhà cung cấp). Để validate nested object, NestJS yêu cầu kết hợp `@ValidateNested()` từ `class-validator` và `@Type(() => AddressDto)` từ `class-transformer` để ép kiểu JSON object sang instance của DTO class trước khi áp dụng các luật kiểm thực.
+  - *Sử dụng Flat Object*: Code validate đơn giản hơn vì không cần cấu hình transformer. Tuy nhiên, nó làm phình to payload DTO, phá vỡ nguyên lý hướng đối tượng và gây khó khăn khi muốn tái sử dụng cụm thông tin địa chỉ ở nơi khác.
+
+### D. Triển khai Custom Validator `IsCorporateEmail` thông qua `registerDecorator`
+- **Quyết định**: Xây dựng một decorator tự định nghĩa `@IsCorporateEmail()` để chặn các email từ nhà cung cấp công cộng (gmail.com, yahoo.com, v.v.).
+- **Trade-off (Tính linh hoạt & Tránh lỗi bypass vs Tận dụng validator có sẵn)**:
+  - *Custom Validator*: Cho phép kiểm soát chặt chẽ quy trình so khớp email. Việc chuyển domain về dạng chữ thường (`.toLowerCase()`) trước khi so sánh giúp ngăn chặn việc bypass qua các email viết hoa dạng `user@GMAIL.COM` hay `user@Yahoo.Com`. Đồng thời, thông báo lỗi có thể tùy chỉnh rõ ràng hơn.
+  - *Regex/Dùng thư viện thứ ba*: Có thể nhanh hơn nhưng khó xử lý triệt để tất cả các case bypass chữ hoa/chữ thường, đồng thời khó bảo trì danh sách blockList khi dự án phát triển.
+
