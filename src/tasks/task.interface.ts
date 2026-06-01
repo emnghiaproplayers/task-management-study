@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class Task {
   @ApiProperty({
@@ -13,12 +13,12 @@ export class Task {
   })
   title: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Investigate why users cannot log in and fix the root cause.',
     description: 'A detailed description of the task',
-    required: false,
   })
   description?: string;
+
 
   @ApiProperty({
     example: 'PENDING',

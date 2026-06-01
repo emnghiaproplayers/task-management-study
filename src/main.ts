@@ -37,7 +37,9 @@ async function bootstrap() {
     .setDescription('Task Management API description')
     .setVersion('1.0')
     .addTag('Tasks')
-    .addBearerAuth()
+    .addTag('Users')
+    .addBearerAuth({ type: 'http', scheme: 'bearer' }, 'bearer')
+    .addApiKey({ type: 'apiKey', name: 'X-API-Key', in: 'header' }, 'apiKey')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);

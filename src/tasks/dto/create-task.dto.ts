@@ -8,34 +8,30 @@ export enum TaskPriority {
 }
 
 export class CreateTaskDto {
-  @ApiProperty({
-    example: 'Fix login bug',
-    description: 'The title of the task',
-    minLength: 3,
-    maxLength: 100,
-  })
   @IsString()
   @MinLength(3)
   @MaxLength(100)
+  @ApiProperty({
+    example: 'Fix login bug',
+    description: 'Task title',
+    type: 'string',
+    minLength: 3,
+    maxLength: 100,
+  })
   title: string;
 
-  @ApiProperty({
-    example: 'Investigate why users cannot log in and fix the root cause.',
-    description: 'A detailed description of the task',
-    maxLength: 500,
-    required: false,
-  })
   @IsString()
   @IsOptional()
   @MaxLength(500)
+  @ApiProperty({
+    example: 'Investigate why users can\'t log in and fix the root cause.',
+    description: 'Task description',
+    type: 'string',
+    maxLength: 500,
+    required: false
+  })
   description?: string;
 
-  @ApiProperty({
-    enum: TaskPriority,
-    example: TaskPriority.HIGH,
-    description: 'The priority of the task',
-    required: false,
-  })
   @IsEnum(TaskPriority)
   @IsOptional()
   priority?: TaskPriority;

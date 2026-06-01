@@ -18,7 +18,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 
 @Controller('tasks')
 @ApiTags('Tasks')
-@ApiBearerAuth()
+@ApiBearerAuth('bearer')
 export class TasksController {
   private readonly logger = new Logger(TasksController.name);
 

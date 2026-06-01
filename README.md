@@ -1,24 +1,25 @@
-# Task Management REST API with Swagger Documentation
+# NestJS Task & User Management REST API with Swagger Documentation
 
-Hệ thống quản lý công việc (Task Management) được tích hợp tài liệu hướng dẫn giao diện lập trình ứng dụng (API Documentation) tự động bằng cách sử dụng `@nestjs/swagger` theo chuẩn OpenAPI Spec.
+Hệ thống quản lý công việc (Task Management) và người dùng (User Management) được tích hợp tài liệu hướng dẫn giao diện lập trình ứng dụng (API Documentation) tự động bằng cách sử dụng `@nestjs/swagger` theo chuẩn OpenAPI Spec.
 
 ---
 
 ## 1. Challenge Description
 
-Bài toán tập trung xây dựng hệ thống tài liệu API trực quan và chuyên nghiệp:
-- **Cấu hình Swagger toàn cục**:
-  - Mount Swagger UI tại đường dẫn `/docs`.
-  - Định nghĩa metadata của API sử dụng `DocumentBuilder` bao gồm `setTitle`, `setDescription`, và `setVersion`.
-  - Đăng ký cơ chế xác thực Token Bearer bằng phương thức `addBearerAuth()`.
-- **Trang trí DTO & Model Schema**:
-  - Trang trí `CreateTaskDto` bằng decorator `@ApiProperty` để tự động hóa sinh tài liệu schema và prefill mẫu payload giúp kiểm thử nhanh qua tính năng "Try it out".
-  - Trang trí thực thể `Task` để mô tả kiểu dữ liệu phản hồi (Response type) giúp frontend nắm bắt được cấu trúc JSON trả về.
-- **Annotate Controller Endpoints**:
-  - Phân nhóm API bằng tag `Tasks` thông qua `@ApiTags()`.
-  - Mô tả chức năng của từng endpoint bằng `@ApiOperation()`.
-  - Gắn tài liệu mã phản hồi bằng `@ApiResponse()` (VD: `201 success`, `400 invalid`, `404 not found`).
-  - Gắn `@ApiBearerAuth()` ở controller level để tích hợp nút Authorize xác thực JWT Bearer cho toàn bộ API Tasks.
+Bài toán tập trung xây dựng hệ thống tài liệu API trực quan, bảo mật phân cấp và chuyên nghiệp với hai phân hệ chính:
+
+### A. Phân hệ Quản lý Công việc (Tasks Module)
+- **Cấu hình Swagger toàn cục**: Mount Swagger UI tại đường dẫn `/docs` với tài liệu JSON raw tại `/docs-json`.
+- **Trang trí DTO & Model Schema**: Sử dụng `@ApiProperty` để tự động hóa sinh tài liệu schema và prefill mẫu payload.
+- **Mô tả Endpoint**: Phân nhóm API bằng tag `Tasks` thông qua `@ApiTags()`, mô tả chức năng bằng `@ApiOperation()`, và phản hồi bằng `@ApiResponse()`.
+
+### B. Phân hệ Quản lý Người dùng (Users Module)
+- **Đa Response Code**: Cấu hình phản hồi chi tiết (200, 201, 400, 404, 409) cho từng endpoint với ví dụ payload thực tế.
+- **Trang trí DTO nâng cao**: Sử dụng `@ApiProperty` và `@ApiPropertyOptional` cho các trường dữ liệu, đồng bộ hóa các ràng buộc dữ liệu đầu vào (ví dụ: `@MinLength(8)` tương ứng với `minLength: 8`) và hiển thị dropdown cho các kiểu dữ liệu `enum` (`UserRole`).
+- **Phân tách Security Scheme**:
+  - `bearer`: JWT Bearer Token dành cho luồng người dùng/quản trị viên (`POST /users`).
+  - `apiKey`: API Key truyền qua Header `X-API-Key` dành cho dịch vụ giám sát nội bộ (`GET /users/internal/health`).
+- **Tổ hợp Schema Envelope**: Sử dụng `getSchemaPath()` kết hợp với `allOf` để định nghĩa kiểu dữ liệu phản hồi bọc qua Transform Interceptor của hệ thống.
 
 ---
 
@@ -56,249 +57,335 @@ Hệ thống được phát triển trên các thư viện cốt lõi:
 - **@nestjs/swagger v11.x**: Động cơ sinh tài liệu tự động qua decorator metadata.
 - **class-validator** & **class-transformer** làm động cơ kiểm thực.
 
-### Sơ đồ luồng hoạt động Swagger (Mermaid Diagram)
+### Sơ đồ luồng hoạt động Swagger & Security (Mermaid Diagram)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as Client / Swagger UI
+    actor Admin as Admin / User (Client)
+    actor Service as Monitor Service (S2S)
     participant Server as NestJS Server
-    participant Swagger as SwaggerModule
-    participant Controller as TasksController
-    participant DTO as CreateTaskDto
+    participant Pipe as ValidationPipe
+    participant Filter as AllExceptionsFilter
+    participant Controller as UsersController
 
-    Client->>Server: GET /docs (Truy cập tài liệu)
-    Server->>Swagger: Yêu cầu kết xuất giao diện Swagger UI HTML
-    Swagger-->>Client: Trả về trang Swagger UI (Kèm nút Authorize & schema)
+    Note over Admin, Server: Xác thực qua Bearer Token
+    Admin->>Server: POST /users (Authorization: Bearer <token>)
+    Server->>Pipe: Validate payload qua CreateUserDto
+    alt DTO hợp lệ
+        Pipe->>Controller: Chuyển tiếp DTO sạch
+        Controller-->>Admin: Trả về HTTP 201 Created (User data)
+    else Email công cộng / Trùng lặp / ZipCode sai
+        Pipe-->>Filter: Bắn HttpException (400 / 409)
+        Filter-->>Admin: Trả về HTTP 400/409 bọc trong details array
+    end
 
-    Note over Client, Swagger: Người dùng nhấn Authorize & điền Token JWT
-
-    Client->>Server: POST /tasks (Try it out - kèm Header Authorization)
-    Server->>Server: Khớp token Bearer ở lớp chặn (nếu có)
-    Server->>DTO: Ánh xạ và Validate payload qua DTO metadata
-    Server->>Controller: Chuyển tiếp DTO hợp lệ đến TasksController.create()
-    Controller-->>Client: Trả về HTTP 201 Created + JSON Task data
+    Note over Service, Server: Xác thực qua API Key
+    Service->>Server: GET /users/internal/health (X-API-Key: <key>)
+    Server->>Controller: Chuyển tiếp nếu khớp apiKey
+    Controller-->>Service: Trả về HTTP 200 OK (status: "up")
 ```
 
 ---
 
 ## 4. Smoke Test (Evidence Thực Tế)
 
-Dưới đây là bằng chứng thực tế được thu thập trực tiếp khi chạy và tương tác với Swagger UI của máy chủ NestJS:
+Dưới đây là bằng chứng thực tế thu thập từ việc chạy ứng dụng và truy cập API:
 
-### Case 1: Đọc Raw OpenAPI Specification JSON (`GET /docs-json`)
+### Excerpt JSON từ `/docs-json` (Chứng minh schema `CreateUserDto` có đủ field + constraint)
+```json
+{
+  "CreateUserDto": {
+    "type": "object",
+    "properties": {
+      "email": {
+        "type": "string",
+        "example": "john.doe@company.com",
+        "description": "The corporate email address of the user"
+      },
+      "username": {
+        "type": "string",
+        "example": "johndoe",
+        "description": "The unique username of the user",
+        "minLength": 3
+      },
+      "password": {
+        "type": "string",
+        "example": "P@ssword123",
+        "description": "The secure password of the user (minimum 8 characters)",
+        "minLength": 8
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "admin",
+          "user"
+        ],
+        "example": "user",
+        "description": "The system role assigned to the user"
+      },
+      "address": {
+        "$ref": "#/components/schemas/AddressDto",
+        "description": "The physical address of the user"
+      },
+      "phoneNumber": {
+        "type": "string",
+        "example": "+1234567890",
+        "description": "Optional contact phone number of the user"
+      }
+    },
+    "required": [
+      "email",
+      "username",
+      "password",
+      "role",
+      "address"
+    ]
+  }
+}
+```
+
+---
+
+### Các ca kiểm thử thực tế (Smoke Test Cases)
+
+#### Case 1: Đọc Raw OpenAPI Specification JSON (`GET /docs-json`)
 - **Request**:
   ```bash
   curl -s http://localhost:3000/docs-json
   ```
-- **Response Spec (Trích xuất các thành phần cốt lõi)**:
+- **Response Spec (Trích xuất paths và securitySchemes)**:
   ```json
   {
     "openapi": "3.0.0",
-    "info": {
-      "title": "Task Management API",
-      "description": "Task Management API description",
-      "version": "1.0",
-      "contact": {}
-    },
     "paths": {
-      "/tasks": {
+      "/users": {
         "post": {
-          "operationId": "TasksController_create",
-          "parameters": [],
-          "requestBody": {
-            "required": true,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateTaskDto"
-                }
-              }
-            }
-          },
-          "responses": {
-            "201": {
-              "description": "Task created successfully",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/Task"
-                  }
-                }
-              }
-            },
-            "400": {
-              "description": "Invalid request payload"
-            }
-          },
-          "tags": ["Tasks"],
+          "operationId": "UsersController_create",
           "security": [{"bearer": []}]
+        }
+      },
+      "/users/internal/health": {
+        "get": {
+          "operationId": "UsersController_health",
+          "security": [{"apiKey": []}]
         }
       }
     },
     "components": {
-      "schemas": {
-        "CreateTaskDto": {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "string",
-              "example": "Fix login bug",
-              "description": "The title of the task",
-              "minLength": 3,
-              "maxLength": 100
-            },
-            "description": {
-              "type": "string",
-              "example": "Investigate why users cannot log in and fix the root cause.",
-              "description": "A detailed description of the task",
-              "maxLength": 500
-            },
-            "priority": {
-              "type": "string",
-              "enum": ["low", "medium", "high"],
-              "example": "high",
-              "description": "The priority of the task"
-            }
-          },
-          "required": ["title"]
-        },
-        "Task": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "example": "mpu88ybs53q",
-              "description": "The unique identifier of the task"
-            },
-            "title": {
-              "type": "string",
-              "example": "Fix login bug",
-              "description": "The title of the task"
-            },
-            "description": {
-              "type": "string",
-              "example": "Investigate why users cannot log in and fix the root cause.",
-              "description": "A detailed description of the task"
-            },
-            "status": {
-              "type": "string",
-              "enum": ["PENDING", "IN_PROGRESS", "COMPLETED"],
-              "example": "PENDING",
-              "description": "The current status of the task"
-            }
-          },
-          "required": ["id", "title", "status"]
-        }
-      },
       "securitySchemes": {
         "bearer": {
           "scheme": "bearer",
           "bearerFormat": "JWT",
           "type": "http"
+        },
+        "apiKey": {
+          "type": "apiKey",
+          "name": "X-API-Key",
+          "in": "header"
         }
       }
     }
   }
   ```
 
-### Case 2: Tạo công việc qua Swagger UI "Try it out" (`POST /tasks`) -> `201 Created`
-Khi nhấn "Execute" với body được prefill tự động từ `@ApiProperty`:
-- **Request URL**: `http://localhost:3000/tasks`
-- **Request Body**:
-  ```json
-  {
-    "title": "Test from Swagger",
-    "description": "Testing API documentation",
-    "priority": "high"
-  }
+#### Case 2: POST `/users` - Đăng ký thành công (`201 Created`)
+- **Request**:
+  ```bash
+  curl -X POST http://localhost:3000/users \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer my-admin-token" \
+    -d '{
+      "email": "john.doe@company.com",
+      "username": "johndoe",
+      "password": "supersecurepassword123",
+      "role": "user",
+      "address": {
+        "street": "123 Main Street",
+        "city": "New York",
+        "zipCode": "10001"
+      }
+    }'
   ```
-- **Response Body**:
+- **Response**:
   ```json
   {
     "statusCode": 201,
     "message": "SUCCESS",
     "data": {
-      "id": "mpv1i0h33q8",
-      "title": "Test from Swagger",
-      "description": "Testing API documentation",
-      "status": "PENDING"
+      "id": "mpv3k4h5a",
+      "email": "john.doe@company.com",
+      "username": "johndoe",
+      "role": "user",
+      "address": {
+        "street": "123 Main Street",
+        "city": "New York",
+        "zipCode": "10001"
+      }
     },
-    "timestamp": "2026-06-01T10:02:20.008Z"
+    "timestamp": "2026-06-01T11:20:20.008Z"
   }
   ```
 
-### Case 3: Lấy danh sách qua Swagger UI "Try it out" (`GET /tasks`) -> `200 OK`
-- **Request URL**: `http://localhost:3000/tasks`
-- **Response Body**:
+#### Case 3: POST `/users` - Thất bại do lỗi định dạng / email công cộng (`400 Bad Request`)
+- **Request**:
+  ```bash
+  curl -X POST http://localhost:3000/users \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer my-admin-token" \
+    -d '{
+      "email": "john.doe@gmail.com",
+      "username": "jo",
+      "password": "123",
+      "role": "user",
+      "address": {
+        "street": "123 Main Street",
+        "city": "New York",
+        "zipCode": "12"
+      }
+    }'
+  ```
+- **Response**:
+  ```json
+  {
+    "statusCode": 400,
+    "error": "BadRequestException",
+    "message": "email must be a corporate email address (public domains like gmail.com, yahoo.com, hotmail.com, or outlook.com are not allowed)",
+    "details": [
+      "email must be a corporate email address (public domains like gmail.com, yahoo.com, hotmail.com, or outlook.com are not allowed)",
+      "username must be longer than or equal to 3 characters",
+      "password must be longer than or equal to 8 characters",
+      "address.zipCode must be a numeric string between 4 and 10 digits"
+    ],
+    "timestamp": "2026-06-01T11:20:22.100Z",
+    "path": "/users"
+  }
+  ```
+
+#### Case 4: POST `/users` - Thất bại do trùng lặp email (`409 Conflict`)
+- **Request**:
+  ```bash
+  curl -X POST http://localhost:3000/users \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer my-admin-token" \
+    -d '{
+      "email": "john.doe@company.com",
+      "username": "johndoe",
+      "password": "supersecurepassword123",
+      "role": "user",
+      "address": {
+        "street": "123 Main Street",
+        "city": "New York",
+        "zipCode": "10001"
+      }
+    }'
+  ```
+- **Response**:
+  ```json
+  {
+    "statusCode": 409,
+    "error": "ConflictException",
+    "message": "Email john.doe@company.com is already registered",
+    "timestamp": "2026-06-01T11:20:25.150Z",
+    "path": "/users"
+  }
+  ```
+
+#### Case 5: GET `/users/:id` - Thất bại do ID không tồn tại (`404 Not Found`)
+- **Request**:
+  ```bash
+  curl http://localhost:3000/users/non-existent-id
+  ```
+- **Response**:
+  ```json
+  {
+    "statusCode": 404,
+    "error": "NotFoundException",
+    "message": "User with ID \"non-existent-id\" not found",
+    "timestamp": "2026-06-01T11:20:40.000Z",
+    "path": "/users/non-existent-id"
+  }
+  ```
+
+#### Case 6: GET `/users/internal/health` - Health check dịch vụ nội bộ (`200 OK` với API Key)
+- **Request**:
+  ```bash
+  curl -H "X-API-Key: my-secret-api-key" http://localhost:3000/users/internal/health
+  ```
+- **Response**:
   ```json
   {
     "statusCode": 200,
     "message": "SUCCESS",
-    "data": [
-      {
-        "id": "1",
-        "title": "Học NestJS",
-        "status": "PENDING",
-        "description": ""
-      },
-      {
-        "id": "mpv1i0h33q8",
-        "title": "Test from Swagger",
-        "description": "Testing API documentation",
-        "status": "PENDING"
-      }
-    ],
-    "timestamp": "2026-06-01T10:02:20.011Z"
+    "data": {
+      "status": "up"
+    },
+    "timestamp": "2026-06-01T11:20:45.000Z"
   }
   ```
 
 ---
 
-## 5. Code Execution Trace (Flow Khởi tạo Swagger)
+## 5. Code Execution Trace (Luồng Đăng ký Người dùng - `POST /users`)
 
-Quá trình quét metadata và khởi chạy giao diện tài liệu Swagger đi qua các điểm chạm sau:
+Luồng xử lý từ khi Client gửi payload lên endpoint `/users` đi qua các điểm chạm sau:
 
-1. **Điểm chạm 1 - Đăng ký Module & Cấu hình Docs Path**:
-   - **File & Dòng**: [src/main.ts:35](file:///d:/Nghia-project/escape-beta/task-management/src/main.ts#L35)
-   - **Mã nguồn**:
-     ```typescript
-     const config = new DocumentBuilder()
-       .setTitle('Task Management API')
-       .setDescription('Task Management API description')
-       .setVersion('1.0')
-       .addBearerAuth()
-       .build();
-     const document = SwaggerModule.createDocument(app, config);
-     SwaggerModule.setup('docs', app, document);
-     ```
-   - **Mô tả**: Khởi tạo SwaggerModule và mount giao diện tài liệu UI lên đường dẫn `/docs`.
-
-2. **Điểm chạm 2 - Controller Route Annotations**:
-   - **File & Dòng**: [src/tasks/tasks.controller.ts:26](file:///d:/Nghia-project/escape-beta/task-management/src/tasks/tasks.controller.ts#L26)
+1. **Điểm chạm 1 - Khởi tạo Router & Route Handler**:
+   - **File & Dòng**: [src/users/users.controller.ts:24](file:///d:/Nghia-project/escape-beta/task-management/src/users/users.controller.ts#L24)
    - **Mã nguồn**:
      ```typescript
      @Post()
-     @ApiOperation({ summary: 'Create a new task' })
-     @ApiResponse({ status: 201, type: Task, description: 'Task created successfully' })
-     @ApiResponse({ status: 400, description: 'Invalid request payload' })
-     create(@Body() createTaskDto: CreateTaskDto): Task
+     @ApiBearerAuth('bearer')
+     @ApiOperation({ summary: 'Create a new user (Admin Only)' })
+     create(@Body() createUserDto: CreateUserDto) {
      ```
-   - **Mô tả**: Gắn metadata mô tả endpoint và định nghĩa các mã HTTP status phản hồi có thể trả về.
+   - **Mô tả**: Khai báo HTTP method, đường dẫn `/users`, cơ chế xác thực JWT và hứng DTO từ request body.
 
-3. **Điểm chạm 3 - DTO Property Mapping**:
-   - **File & Dòng**: [src/tasks/dto/create-task.dto.ts:10](file:///d:/Nghia-project/escape-beta/task-management/src/tasks/dto/create-task.dto.ts#L10)
+2. **Điểm chạm 2 - Cấu trúc dữ liệu và Ràng buộc Validation**:
+   - **File & Dòng**: [src/users/dto/create-user.dto.ts:13](file:///d:/Nghia-project/escape-beta/task-management/src/users/dto/create-user.dto.ts#L13)
    - **Mã nguồn**:
      ```typescript
-     @ApiProperty({
-       example: 'Fix login bug',
-       description: 'The title of the task',
-       minLength: 3,
-       maxLength: 100,
-     })
-     title: string;
+     export class CreateUserDto {
+       @ApiProperty({ ... })
+       @IsEmail()
+       @IsCorporateEmail()
+       email: string;
      ```
-   - **Mô tả**: Khai báo ví dụ (example) và các ràng buộc dữ liệu trực quan cho Schema Object trên giao diện tài liệu.
+   - **Mô tả**: `ValidationPipe` toàn cục chặn request để kiểm tra định dạng email và các thuộc tính khác.
+
+3. **Điểm chạm 3 - Chạy Custom Validator `IsCorporateEmail`**:
+   - **File & Dòng**: [src/users/validators/is-corporate-email.validator.ts:11](file:///d:/Nghia-project/escape-beta/task-management/src/users/validators/is-corporate-email.validator.ts#L11)
+   - **Mã nguồn**:
+     ```typescript
+     validate(value: any, args: ValidationArguments) {
+       // logic chuyển chữ thường và so khớp domain blocklist
+       const domain = parts[1].toLowerCase();
+       return !blockList.includes(domain);
+     }
+     ```
+   - **Mô tả**: Lớp validator tùy biến kiểm tra định dạng email của doanh nghiệp và tránh bypass bằng ký tự viết hoa.
+
+4. **Điểm chạm 4 - Xử lý Service & Ném Lỗi Trùng Lặp**:
+   - **File & Dòng**: [src/users/users.service.ts:8](file:///d:/Nghia-project/escape-beta/task-management/src/users/users.service.ts#L8)
+   - **Mã nguồn**:
+     ```typescript
+     create(createUserDto: CreateUserDto) {
+       const emailExists = this.users.some(...);
+       if (emailExists) {
+         throw new ConflictException(`Email ${createUserDto.email} is already registered`);
+       }
+     ```
+   - **Mô tả**: Kiểm tra email trong Map/Array dữ liệu; nếu tồn tại thì ném ra lỗi `ConflictException` (HTTP 409).
+
+5. **Điểm chạm 5 - Exception Filter định dạng response**:
+   - **File & Dòng**: [src/common/filters/all-exceptions.filter.ts:36](file:///d:/Nghia-project/escape-beta/task-management/src/common/filters/all-exceptions.filter.ts#L36)
+   - **Mã nguồn**:
+     ```typescript
+     private resolveDetails(exception: any) {
+       // logic bóc tách message array sang field details
+     }
+     ```
+   - **Mô tả**: Intercept exception ném từ service/pipe và định dạng lại cấu trúc JSON trước khi trả về client.
 
 ---
 
@@ -306,25 +393,24 @@ Quá trình quét metadata và khởi chạy giao diện tài liệu Swagger đi
 
 ### A. Chọn mount Swagger UI tại `/docs` thay vì `/api` hoặc `/swagger`
 - **Quyết định**: Cấu hình đường dẫn tài liệu mặc định là `/docs`.
-- **Trade-off (Tính phổ biến và bảo mật vs Tiêu chuẩn mặc định)**:
-  - *Sử dụng `/docs`*: Rất trực quan và phổ biến đối với các nhà phát triển frontend khi tìm kiếm tài liệu (phù hợp với thói quen tìm kiếm thư mục `/docs` hoặc `/documentation`). Đồng thời, nó tách biệt hoàn toàn với phân vùng API chạy thực tế (thường mount ở `/api/v1/...`), giúp dễ dàng cấu hình quy tắc bảo mật chặn truy cập `/docs` ở môi trường production ở mức Reverse Proxy (Nginx/Cloudflare).
-  - *Sử dụng `/swagger` hoặc `/api`*: Lộ ra cấu trúc tài liệu quá lộ liễu cho hacker dò tìm, đồng thời dễ xung đột đường dẫn nếu API chính thức cũng bắt đầu bằng `/api`.
+- **Trade-off**: Rất trực quan và phổ biến đối với các nhà phát triển frontend khi tìm kiếm tài liệu. Đồng thời, nó tách biệt hoàn toàn với phân vùng API chạy thực tế, giúp dễ dàng cấu hình quy tắc bảo mật chặn truy cập `/docs` ở môi trường production ở mức Reverse Proxy (Nginx/Cloudflare).
 
 ### B. Sử dụng Decorator-Driven Swagger Spec thay vì viết tay YAML/JSON
 - **Quyết định**: Sử dụng `@nestjs/swagger` để tự động sinh tài liệu từ mã nguồn.
-- **Trade-off (Tính nhất quán & Tốc độ phát triển vs Độ tách biệt của tài liệu)**:
-  - *Decorator-Driven (Sinh tự động)*: Giúp code trở thành "Single Source of Truth". Khi lập trình viên thay đổi trường dữ liệu hoặc validator trong DTO class, tài liệu Swagger sẽ tự động cập nhật ngay khi build mà không sợ bị lệch pha (out of sync). 
-  - *Viết tay YAML/JSON*: Giúp mã nguồn controller sạch hơn, không bị rối mắt bởi lượng lớn decorator. Tuy nhiên, nó đòi hỏi lập trình viên phải duy trì hai file độc lập, rất dễ xảy ra sai lệch thông tin khi dự án mở rộng nhanh chóng.
+- **Trade-off**: Giúp code trở thành "Single Source of Truth". Khi lập trình viên thay đổi trường dữ liệu hoặc validator trong DTO class, tài liệu Swagger sẽ tự động cập nhật ngay khi build mà không sợ bị lệch pha (out of sync).
 
 ### C. Sử dụng Nested DTO thay vì Single Flat Object
-- **Quyết định**: Tách thông tin địa chỉ ra thành một DTO con `AddressDto` lồng bên trong `CreateUserDto` thay vì đưa toàn bộ các trường `street`, `city`, `zipCode` lên cùng cấp với `email`.
-- **Trade-off (Tính module hóa & Khả năng tái sử dụng vs Sự phức tạp khi validate)**:
-  - *Sử dụng Nested DTO*: Giúp cấu trúc dữ liệu rõ ràng hơn, phản ánh đúng mô hình domain (một User có một Address). `AddressDto` có thể được tái sử dụng ở các endpoint khác (ví dụ: cập nhật địa chỉ, đăng ký nhà cung cấp). Để validate nested object, NestJS yêu cầu kết hợp `@ValidateNested()` từ `class-validator` và `@Type(() => AddressDto)` từ `class-transformer` để ép kiểu JSON object sang instance của DTO class trước khi áp dụng các luật kiểm thực.
-  - *Sử dụng Flat Object*: Code validate đơn giản hơn vì không cần cấu hình transformer. Tuy nhiên, nó làm phình to payload DTO, phá vỡ nguyên lý hướng đối tượng và gây khó khăn khi muốn tái sử dụng cụm thông tin địa chỉ ở nơi khác.
+- **Quyết định**: Tách thông tin địa chỉ ra thành một DTO con `AddressDto` lồng bên trong `CreateUserDto` thay vì đưa toàn bộ các trường lên cùng cấp.
+- **Trade-off**: Giúp cấu trúc dữ liệu rõ ràng hơn, phản ánh đúng mô hình domain (một User có một Address). `AddressDto` có thể được tái sử dụng ở các endpoint khác (ví dụ: cập nhật địa chỉ, đăng ký nhà cung cấp). Để validate nested object, NestJS yêu cầu kết hợp `@ValidateNested()` và `@Type(() => AddressDto)` để ép kiểu JSON object sang instance của DTO class trước khi áp dụng các luật kiểm thực.
 
 ### D. Triển khai Custom Validator `IsCorporateEmail` thông qua `registerDecorator`
 - **Quyết định**: Xây dựng một decorator tự định nghĩa `@IsCorporateEmail()` để chặn các email từ nhà cung cấp công cộng (gmail.com, yahoo.com, v.v.).
-- **Trade-off (Tính linh hoạt & Tránh lỗi bypass vs Tận dụng validator có sẵn)**:
-  - *Custom Validator*: Cho phép kiểm soát chặt chẽ quy trình so khớp email. Việc chuyển domain về dạng chữ thường (`.toLowerCase()`) trước khi so sánh giúp ngăn chặn việc bypass qua các email viết hoa dạng `user@GMAIL.COM` hay `user@Yahoo.Com`. Đồng thời, thông báo lỗi có thể tùy chỉnh rõ ràng hơn.
-  - *Regex/Dùng thư viện thứ ba*: Có thể nhanh hơn nhưng khó xử lý triệt để tất cả các case bypass chữ hoa/chữ thường, đồng thời khó bảo trì danh sách blockList khi dự án phát triển.
+- **Trade-off**: Cho phép kiểm soát chặt chẽ quy trình so khớp email. Việc chuyển domain về dạng chữ thường (`.toLowerCase()`) trước khi so sánh giúp ngăn chặn việc bypass qua các email viết hoa dạng `user@GMAIL.COM` hay `user@Yahoo.Com`. Đồng thời, thông báo lỗi có thể tùy chỉnh rõ ràng hơn.
 
+### E. Phân tách Security Scheme (Bearer Auth & ApiKey Auth)
+- **Quyết định**: Đăng ký đồng thời cơ chế xác thực JWT Bearer (`bearer` dành cho người dùng/admin) và API Key (`apiKey` dành cho dịch vụ nội bộ service-to-service).
+- **Trade-off**: Đảm bảo đúng nguyên tắc phân quyền (least privilege). Các API quản lý trực tiếp bởi con người (`POST /users`) được khóa qua Token Bearer cá nhân; trong khi các API đo lường hiệu năng/health check (`GET /users/internal/health`) được bảo mật bằng Header API Key dành cho các công cụ giám sát (Prometheus, Kubernetes). Nó giúp tránh rò rỉ token quyền cao của quản trị viên cho các hệ thống giám sát tự động.
+
+### F. Tổ hợp Schema Envelope thông qua `allOf` và `getSchemaPath`
+- **Quyết định**: Sử dụng `getSchemaPath(UserDto)` kết hợp với `allOf` để định nghĩa phản hồi đã được bọc qua Transform Interceptor (Standard Response Envelope).
+- **Trade-off**: Tạo ra các schema phản hồi vô cùng chính xác, mô tả đúng thực tế trường `data` chứa thông tin gì (đối tượng đơn lẻ hay mảng đối tượng `UserDto[]`) cùng với các trường metadata bao ngoài (`statusCode`, `message`, `timestamp`). Việc khai báo `@ApiExtraModels(UserDto)` tại Controller là bắt buộc để Swagger module có thể biên dịch ra schema thô của `UserDto` dù nó không trực tiếp xuất hiện làm kiểu trả về gốc của method.
