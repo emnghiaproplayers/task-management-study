@@ -33,6 +33,11 @@ export class TasksController {
     return this.tasksService.findAll();
   }
 
+  @Get('crash')
+  crash() {
+    return this.tasksService.crash();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string): Task {
     this.logger.log(`GET /tasks/${id}: Retrieving task detail`);

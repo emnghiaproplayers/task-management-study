@@ -5,25 +5,27 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 
 @Injectable()
 export class TasksService {
-  private tasks: Task[] = [];
+  private tasks: Map<string, Task> = new Map([
+    ['1', { id: '1', title: 'Học NestJS', status: 'PENDING', description: '' }],
+  ]);
 
   create(createTaskDto: CreateTaskDto): Task {
     const task: Task = {
       id: Date.now().toString(36) + Math.random().toString(36).substring(2, 5),
       title: createTaskDto.title,
-      description: createTaskDto.description,
+      description: createTaskDto.description || '',
       status: 'PENDING',
     };
-    this.tasks.push(task);
+    this.tasks.set(task.id, task);
     return task;
   }
 
   findAll(): Task[] {
-    return this.tasks;
+    return Array.from(this.tasks.values());
   }
 
   findOne(id: string): Task {
-    const task = this.tasks.find((t) => t.id === id);
+    const task = this.tasks.get(id);
     if (!task) {
       throw new NotFoundException(`Task with ID "${id}" not found`);
     }
@@ -32,23 +34,18 @@ export class TasksService {
 
   update(id: string, updateTaskDto: UpdateTaskDto): Task {
     const task = this.findOne(id);
-    if (updateTaskDto.title !== undefined) {
-      task.title = updateTaskDto.title;
-    }
-    if (updateTaskDto.description !== undefined) {
-      task.description = updateTaskDto.description;
-    }
-    if (updateTaskDto.status !== undefined) {
-      task.status = updateTaskDto.status;
-    }
+    // Cập nhật object task (vì map lưu tham chiếu nên thay đổi này sẽ ảnh hưởng trực tiếp)
+    Object.assign(task, updateTaskDto);
     return task;
   }
 
   remove(id: string): void {
-    const index = this.tasks.findIndex((t) => t.id === id);
-    if (index === -1) {
+    if (!this.tasks.has(id)) {
       throw new NotFoundException(`Task with ID "${id}" not found`);
     }
-    this.tasks.splice(index, 1);
+    this.tasks.delete(id); // Sử dụng .delete() cho Map
+  }
+  crash(): void {
+    throw new Error('Unexpected');
   }
 }
