@@ -3,8 +3,8 @@ import { AppModule } from './app.module';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import { ValidationPipe } from '@nestjs/common';
-import { TransformInterceptor } from './tasks/interceptors/transform.interceptor';
-import { AllExceptionsFilter } from './tasks/filters/all-exceptions.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
